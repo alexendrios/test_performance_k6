@@ -1,7 +1,7 @@
 import http from 'k6/http'
 import { sleep, check } from 'k6'
 import { Trend } from 'k6/metrics'
-import { buildSummary } from '../helpers/summary.helper.js';
+import { buildSummary } from '../helpers/k6-summary.helper.js';
 
 
 // ==========================

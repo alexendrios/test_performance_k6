@@ -1,6 +1,6 @@
 import http from 'k6/http'
 import { sleep, check } from 'k6'
-import { buildSummary } from '../helpers/summary.helper.js';
+import { buildSummary } from '../helpers/k6-summary.helper.js';
 
 // ==========================
 // Opções do teste – SMOKE

@@ -1,14 +1,8 @@
+// helpers/k6-summary.helper.js
 import { htmlReport } from 'https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.js';
 import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.1/index.js';
 
-/**
- * Gera summary padrão para todos os testes k6
- */
-export function buildSummary({
-  data,
-  reportName,
-  testName,
-}) {
+export function buildSummary({ data, reportName, testName }) {
   const BUILD_DATE = new Date().toLocaleString('pt-BR');
 
   return {
@@ -22,4 +16,3 @@ export function buildSummary({
     }),
   };
 }
-

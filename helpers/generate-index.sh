@@ -1,26 +1,44 @@
 #!/bin/bash
+set -e
 
-ENV=${ENV:-dev}
-BASE_DIR="results/$ENV"
-INDEX_FILE="reports/index.html"
+########################################
+# VALIDACAO
+########################################
+EXPORT_DIR="$1"
 
-mkdir -p reports
+if [ -z "$EXPORT_DIR" ]; then
+  echo "❌ Uso: generate-index.sh <EXPORT_DIR>"
+  exit 0
+fi
 
-cat <<EOF > $INDEX_FILE
+EXPORT_DIR="$(cd "$EXPORT_DIR" && pwd)"
+SUMMARY_JSON="$EXPORT_DIR/summary.json"
+OUTPUT_HTML="$EXPORT_DIR/index.html"
+
+if [ ! -f "$SUMMARY_JSON" ]; then
+  echo "⚠️ summary.json não encontrado em $EXPORT_DIR"
+  exit 0
+fi
+
+########################################
+# HTML HEADER
+########################################
+cat <<'EOF' > "$OUTPUT_HTML"
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>K6 Dashboard - $ENV</title>
+<title>Dashboard de Performance</title>
 <style>
 body {
   font-family: Arial, sans-serif;
-  background: #0f172a;
+  background: #020617;
   color: #e5e7eb;
-  padding: 40px;
+  padding: 30px;
 }
-h1 { color: #38bdf8; }
-.env { color: #a5b4fc; }
+h1 {
+  color: #38bdf8;
+}
 table {
   width: 100%;
   border-collapse: collapse;
@@ -28,69 +46,107 @@ table {
 }
 th, td {
   padding: 12px;
-  border-bottom: 1px solid #334155;
+  border-bottom: 1px solid #1e293b;
+  text-align: center;
 }
-tr:hover { background: #1e293b; }
-.badge-ok { color: #22c55e; font-weight: bold; }
-.badge-fail { color: #ef4444; font-weight: bold; }
-.badge-error { color: #f97316; font-weight: bold; }
-.date { color: #94a3b8; font-size: 0.9em; }
+th {
+  background: #020617;
+  color: #94a3b8;
+}
+tr:hover {
+  background: #020617;
+}
+.badge {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: bold;
+  font-size: 12px;
+}
+.LOW    { background: #4ade80; color: #022c22; }
+.MEDIUM { background: #facc15; color: #422006; }
+.HIGH   { background: #f87171; color: #450a0a; }
+.OK     { background: #22c55e; color: #052e16; }
+.FAIL   { background: #ef4444; color: #450a0a; }
+
+a {
+  color: #38bdf8;
+  text-decoration: none;
+}
+.footer {
+  margin-top: 30px;
+  color: #64748b;
+  font-size: 12px;
+}
 </style>
 </head>
 <body>
 
-<h1>📊 K6 – Dashboard de Performance</h1>
-<p class="env">Ambiente: <strong>$ENV</strong></p>
+<h1>📊 Dashboard de Performance</h1>
 
 <table>
 <thead>
 <tr>
-  <th>Execução</th>
   <th>Teste</th>
+  <th>P95 (ms)</th>
+  <th>Baseline P95</th>
+  <th>Δ %</th>
+  <th>Checks</th>
+  <th>Score</th>
+  <th>Trend</th>
+  <th>Risco</th>
   <th>Status</th>
-  <th>Tipo</th>
+  <th>Relatório</th>
 </tr>
 </thead>
 <tbody>
 EOF
 
-for RUN in $(ls -dt $BASE_DIR/* 2>/dev/null); do
-  RUN_ID=$(basename "$RUN")
-  STATUS_FILE="$RUN/status.csv"
+########################################
+# CONTEÚDO DINÂMICO
+########################################
+jq -c '.[]' "$SUMMARY_JSON" | while read -r row; do
+  TEST=$(echo "$row" | jq -r '.test')
+  P95=$(echo "$row" | jq -r '.p95')
+  BASE=$(echo "$row" | jq -r '.baseline_p95')
+  DELTA=$(echo "$row" | jq -r '.delta_pct')
+  CHECKS=$(echo "$row" | jq -r '.checks')
+  SCORE=$(echo "$row" | jq -r '.score')
+  TREND=$(echo "$row" | jq -r '.trend')
+  RISK=$(echo "$row" | jq -r '.risk')
+  STATUS=$(echo "$row" | jq -r '.status')
 
-  [ ! -f "$STATUS_FILE" ] && continue
+  REPORT_LINK="./${TEST}-report.html"
 
-  while IFS=',' read -r TEST STATUS TYPE; do
-    [[ "$TEST" == "test" ]] && continue
 
-    case $TYPE in
-      success)
-        BADGE="<span class='badge-ok'>✅ OK</span>"
-        ;;
-      threshold)
-        BADGE="<span class='badge-fail'>❌ Threshold</span>"
-        ;;
-      technical)
-        BADGE="<span class='badge-error'>💥 Técnico</span>"
-        ;;
-    esac
-
-    echo "<tr>
-      <td class='date'>$RUN_ID</td>
-      <td>$TEST</td>
-      <td>$BADGE</td>
-      <td>$TYPE</td>
-    </tr>" >> $INDEX_FILE
-
-  done < "$STATUS_FILE"
+  cat <<EOF >> "$OUTPUT_HTML"
+<tr>
+  <td><strong>$TEST</strong></td>
+  <td>${P95}</td>
+  <td>${BASE}</td>
+  <td>${DELTA}%</td>
+  <td>${CHECKS}%</td>
+  <td>${SCORE}</td>
+  <td>${TREND}</td>
+  <td><span class="badge ${RISK}">${RISK}</span></td>
+  <td><span class="badge ${STATUS}">${STATUS}</span></td>
+  <td><a href="$REPORT_LINK" target="_blank">📄 Abrir</a></td>
+</tr>
+EOF
 done
 
-cat <<EOF >> $INDEX_FILE
+########################################
+# HTML FOOTER
+########################################
+cat <<EOF >> "$OUTPUT_HTML"
 </tbody>
 </table>
+
+<div class="footer">
+Gerado automaticamente • k6 Performance Suite
+</div>
 
 </body>
 </html>
 EOF
 
-echo "✅ Dashboard gerado: $INDEX_FILE"
+echo "✅ Dashboard gerado: $OUTPUT_HTML"
